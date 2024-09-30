@@ -7,11 +7,11 @@ export type Todos = {
 }
 
 const FetchTodo = () => {
-  const [todos, setTodos] = useState<Todos[]>([])
+  const [todos, setTodos] = useState<Todos[]>([]);
   const [todoText, setTodoText] = useState<string>("");
   const [visibleCount, setVisibleCount] = useState<number>(5);
   const [areMoreTodosVisible, setAreMoreTodosVisible] = useState<boolean>(false);
-
+  const [editingTodo, setEditingTodo] = useState<Todos | null>(null);
 
   const fetchTodos = async () => {
     try {
@@ -53,10 +53,42 @@ const FetchTodo = () => {
     console.log(data)
   }
 
+  const handleEditTodo = async (todo: Todos) => {
+    const response = await fetch(`https://dummyjson.com/todos/${todo.id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        todo: todoText,
+        userId: todo.userId,
+      }),
+    });
+    const updatedTodo = await response.json();
+
+    setTodos((prevTodos) =>
+      prevTodos.map((item) => (item.id === updatedTodo.id ? updatedTodo : item))
+    );
+    setTodoText("");
+    setEditingTodo(null);
+
+    // Update localStorage
+    localStorage.setItem("todos", JSON.stringify(todos.map(item => (item.id === updatedTodo.id ? updatedTodo : item))));
+  };
+
+  const handleUpdateClick = (item: Todos) => {
+    if (editingTodo && editingTodo.id === item.id) {
+      // If already editing this todo, save it
+      handleEditTodo(item);
+    } else {
+      // Set the current todo for editing and fill the input field
+      setEditingTodo(item);
+      setTodoText(item.todo);
+    }
+  };
+
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    handleAddTodo()
-  }
+    handleAddTodo();
+  };
 
   const loadMoreTodos = () => {
     setVisibleCount((prevCount) => prevCount + 5);
@@ -68,6 +100,27 @@ const FetchTodo = () => {
     setAreMoreTodosVisible(false); // Hide more todos
   };
 
+  const handleDeleteTodo = async (todo: Todos) => {
+    await fetch(`https://dummyjson.com/todos/${todo.id}`, {
+      method: "DELETE",
+    });
+    setTodos((prevTodos) => prevTodos.filter((item) => item.id !== todo.id));
+
+    // Update localStorage after deletion
+    localStorage.setItem("todos", JSON.stringify(todos.filter((item) => item.id !== todo.id)));
+  };
+
+  const handleCancelOrDelete = (todo: Todos) => {
+    if (editingTodo && todo.id === editingTodo.id) {
+      // Cancel logic
+      setEditingTodo(null);
+      setTodoText("");
+    } else {
+      // Delete logic
+      handleDeleteTodo(todo);
+    }
+  };
+
   return (
     <section>
       <h1 style={{ textAlign: "center" }}>Fetch Todos</h1>
@@ -77,7 +130,7 @@ const FetchTodo = () => {
           <input style={{ border: "1px solid blue", padding: "6px", width: "100%" }}
             type="text"
             name="todos"
-            value={todoText}
+            value={editingTodo ? "" : todoText}
             onChange={(e) => setTodoText(e.target.value)}
           />
           <button>ADD</button>
@@ -87,10 +140,20 @@ const FetchTodo = () => {
         <ul style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {todos.slice(0, visibleCount).map((item) => (
             <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <li>{item.todo}</li>
+              {editingTodo?.id === item.id ? (
+                <input
+                  type="text"
+                  value={todoText}
+                  onChange={(e) => setTodoText(e.target.value)}
+                  style={{ border: "1px solid blue", padding: "6px", width: "50%", }}
+                  readOnly={editingTodo?.id !== item.id}
+                />
+              ) : (
+                <li>{item.todo}</li>
+              )}
               <div style={{ display: "flex", gap: "12px" }}>
-                <button>Update</button>
-                <button>Delete</button>
+                <button onClick={() => { handleUpdateClick(item) }}>{editingTodo ? 'Save' : 'Update'}</button>
+                <button onClick={() => handleCancelOrDelete(item)}>{editingTodo ? 'Cancel' : 'Delete'}</button>
               </div>
             </div>
           ))}
@@ -101,13 +164,13 @@ const FetchTodo = () => {
             <button onClick={loadMoreTodos}
               style={{ backgroundColor: "blue", cursor: "pointer", color: "white", border: "none", padding: "8px 8px" }}>
               Load More
-            </button> // Button to load more todos
+            </button>
           )}
           {areMoreTodosVisible && (
             <button onClick={hideMoreTodos}
               style={{ backgroundColor: "blue", cursor: "pointer", color: "white", border: "none", padding: "8px 8px" }}>
               Hide Todos
-            </button> // Button to load more todos
+            </button>
           )}
         </div>
       </section>
@@ -115,4 +178,4 @@ const FetchTodo = () => {
   )
 }
 
-export default FetchTodo
+export default FetchTodo;
